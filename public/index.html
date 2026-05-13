@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Remote File Access</title>
+</head>
+
+<body>
+    <h2>Remote File Access</h2>
+
+    <input id="codeInput" placeholder="Enter device code" />
+    <button onclick="connectDevice()">Connect</button>
+    <button onclick="requestFiles()">Show Files</button>
+
+    <p id="status"></p>
+
+    <ul id="fileList"></ul>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        function downloadFile(fileId, filename, mimeType) {
+            socket.emit("request-file-data", { fileId });
+
+            socket.once("file-data", (file) => {
+                const base64 = file.base64;
+                const fileUrl = `data:${mimeType};base64,${base64}`;
+
+                if (mimeType.startsWith("image/")) {
+                    const img = document.createElement("img");
+                    img.src = fileUrl;
+                    img.style.width = "200px";
+                    img.style.display = "block";
+                    document.body.appendChild(img);
+                }
+
+                const a = document.createElement("a");
+                a.href = fileUrl;
+                a.download = filename;
+                a.innerText = "Download " + filename;
+                a.style.display = "block";
+                a.click();
+            });
+        }
+
+        function connectDevice() {
+            const code = document.getElementById("codeInput").value.trim();
+
+            socket.emit("check-device", code, (res) => {
+                if (res.success) {
+                    document.getElementById("status").innerText = "Device is online";
+                } else {
+                    document.getElementById("status").innerText = "Device not found or offline";
+                }
+            });
+        }
+
+        function requestFiles() {
+            socket.emit("request-files");
+        }
+
+        socket.on("files-list", (files) => {
+            const fileList = document.getElementById("fileList");
+            fileList.innerHTML = "";
+
+            if (!files.length) {
+                fileList.innerHTML = "<li>No files found or permission denied</li>";
+                return;
+            }
+
+            files.forEach((file) => {
+                const li = document.createElement("li");
+
+                li.innerHTML = `
+    <strong>${file.filename}</strong>
+    <br>
+    Type: ${file.mimeType}
+    <br>
+    <button onclick="downloadFile('${file.id}', '${file.filename}', '${file.mimeType}')">
+      Open / Download
+    </button>
+    <hr>
+  `;
+
+                fileList.appendChild(li);
+            });
+        });
+    </script>
+</body>
+
+</html>
